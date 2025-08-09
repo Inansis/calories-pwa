@@ -1,4 +1,4 @@
-/* PWA Calories App — RU UI, IndexedDB, CSV import/export (+предпросмотр), график с точками/подписями, сдвиг дня. */
+/* PWA Calories App — RU UI, IndexedDB, CSV preview/import/export, график, сдвиг дня. */
 
 // --- IndexedDB mini wrapper ---
 const dbp = (() => {
@@ -119,7 +119,7 @@ async function refreshToday(){
   const color = (val, goal)=> val < goal ? 'red' : (val <= goal*1.10 ? 'green' : 'yellow');
   sumKcal.className = 'sum-value ' + color(sum.kcal, gK);
   sumProt.className = 'sum-value ' + color(sum.prot, gP);
-  sumFat.className  = 'sum-value ' + color(sum.fat, gF);
+  sumFat .className = 'sum-value ' + color(sum.fat,  gF);
   sumCarb.className = 'sum-value ' + color(sum.carb, gC);
 
   const list = document.getElementById('entriesList');
@@ -179,17 +179,31 @@ function openManualDialog(prefill){
     e.preventDefault();
     if (!name.value.trim()) return;
     const weight = parseFloat(w.value); if (isNaN(weight) || weight < 0) return;
-    const kcal100 = Math.max(0, parseFloat(k100.value)||0);
+
     const prot100 = Math.max(0, parseFloat(p100.value)||0);
     const fat100  = Math.max(0, parseFloat(f100.value)||0);
     const carb100 = Math.max(0, parseFloat(c100.value)||0);
+
+    // если ккал не указаны или 0 — считаем из БЖУ
+    let kcal100 = parseFloat(k100.value);
+    if (isNaN(kcal100) || kcal100 <= 0) {
+      kcal100 = prot100 * 4 + fat100 * 9 + carb100 * 4;
+    }
+    kcal100 = Math.max(0, kcal100);
+
     const factor = weight / 100.0;
     const obj = {
       name: name.value.trim(), weight,
-      kcal: kcal100*factor, protein: prot100*factor, fat: fat100*factor, carb: carb100*factor,
+      kcal: kcal100 * factor,
+      protein: prot100 * factor,
+      fat: fat100 * factor,
+      carb: carb100 * factor,
       timestamp: Date.now()
     };
-    if (prefill?.onSave) await prefill.onSave(obj); else await dbp.add('entries', obj);
+
+    if (prefill?.onSave) await prefill.onSave(obj);
+    else await dbp.add('entries', obj);
+
     dlg.close(); refreshToday();
   };
   dlg.showModal();
@@ -210,6 +224,12 @@ async function renderLibrary(){
     const items = (await dbp.getAll('products'))
       .filter(p => !q || p.name.toLowerCase().includes(q))
       .sort((a,b)=> a.name.localeCompare(b.name));
+
+    if (items.length === 0) {
+      list.innerHTML = '<li class="meta">Нет результатов. Очистите поиск или добавьте продукт.</li>';
+      return;
+    }
+
     list.innerHTML = '';
     for(const p of items){
       const li = document.createElement('li');
@@ -239,7 +259,9 @@ async function renderLibrary(){
 
   await draw();
 }
-function openEditProduct(prod){
+
+// FIX: ждём запись + сбрасываем поиск, чтобы новый элемент не скрывал фильтр
+async function openEditProduct(prod){
   const name = prompt("Название продукта/блюда:", prod?.name || "");
   if (name===null || !name.trim()) return;
   const num = (v)=> Math.max(0, parseFloat(v)||0);
@@ -249,13 +271,25 @@ function openEditProduct(prod){
   let kcal   = prompt("Ккал /100г (пусто — рассчитать):", prod?.kcalPer100 ?? "");
   kcal = (kcal.trim()==="") ? prot*4 + fat*9 + carb*4 : num(kcal);
 
-  const obj = { id: prod?.id, name: name.trim(),
-    kcalPer100: kcal, proteinPer100: prot, fatPer100: fat, carbPer100: carb,
+  const obj = {
+    id: prod?.id,
+    name: name.trim(),
+    kcalPer100: kcal,
+    proteinPer100: prot,
+    fatPer100: fat,
+    carbPer100: carb,
     createdAt: prod?.createdAt || Date.now()
   };
-  if (prod?.id) dbp.put('products', obj); else dbp.add('products', obj);
-  renderLibrary();
+
+  if (prod?.id) { await dbp.put('products', obj); }
+  else          { await dbp.add('products', obj); }
+
+  const search = document.getElementById('libSearch');
+  if (search) search.value = "";
+
+  await renderLibrary();
 }
+
 function openLibraryUse(prod){
   const dlg = document.getElementById('dlgLibAdd');
   document.getElementById('libSelName').textContent = prod.name;
