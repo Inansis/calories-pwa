@@ -1,21 +1,25 @@
-const CACHE = 'calories-pwa-v2';
+// sw.js
+const CACHE = 'calories-pwa-v2'; // <- новое имя кэша
 const ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
-  './manifest.json'
+  './styles.css?v=2',
+  './app.js?v=2',
+  './manifest.json?v=2',
 ];
 
 self.addEventListener('install', e => {
-  self.skipWaiting();
+  self.skipWaiting(); // сразу активировать новый SW
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k!==CACHE).map(k => caches.delete(k)))));
-  self.clients.claim();
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    )
+  );
+  self.clients.claim(); // взять управление сразу
 });
 
 self.addEventListener('fetch', e => {
