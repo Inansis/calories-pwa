@@ -3,9 +3,9 @@ const CACHE = 'calories-pwa-v2'; // <- новое имя кэша
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=2',
-  './app.js?v=2',
-  './manifest.json?v=2',
+  './styles.css?v=3',
+  './app.js?v=3',
+  './manifest.json?v=3',
 ];
 
 self.addEventListener('install', e => {
